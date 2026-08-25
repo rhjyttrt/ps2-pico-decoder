@@ -655,7 +655,7 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
     last_led_blink = millis();
     heartbeat_state = !heartbeat_state;
     if (heartbeat_state) {
-      analogWrite(LED_HEARTBEAT_PIN, 25); // ~10% of 255
+      analogWrite(LED_HEARTBEAT_PIN, 3); // ~1% brightness
     } else {
       analogWrite(LED_HEARTBEAT_PIN, 0);
     }
