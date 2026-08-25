@@ -560,7 +560,13 @@ void setup() {
   if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
     oled_ready = false;
   } else {
-    oled_ready = true;
+    // RAM allocated, but is the screen actually plugged in?
+    Wire.beginTransmission(OLED_ADDR);
+    if (Wire.endTransmission() == 0) {
+      oled_ready = true;
+    } else {
+      oled_ready = false;
+    }
 
     // Overclock SSD1306 internal display refresh oscillator (~450 kHz)
     Wire.beginTransmission(OLED_ADDR);
