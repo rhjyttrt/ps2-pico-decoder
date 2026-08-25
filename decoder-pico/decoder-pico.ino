@@ -395,18 +395,40 @@ void render_frame_to_staging(uint8_t last_code, const char* event_type, const ch
 
   // === YELLOW SECTION (Rows 0 - 15) ===
   display.setTextSize(2);
-  display.setCursor(16, 0); // Center the 8 characters (12px * 8 = 96px, 128-96=32, 32/2=16)
+  display.setCursor(16, 0); // Center the 8 characters
   display.print(bin_buf);
 
   // === BLUE SECTION (Rows 16 - 63) ===
-  display.setTextSize(1);
-  display.setCursor(0, 24);
-  display.print("Action: ");
-  display.print(event_type); // "MAKE" or "BREAK"
+  // Draw a stylized rounded frame for the blue section
+  display.drawRoundRect(0, 17, 128, 47, 4, SSD1306_WHITE);
 
-  display.setTextSize(2);
-  display.setCursor(0, 40);
-  display.print(key_name); // Human-readable key name
+  // Action Badge (Filled for MAKE, Outlined for BREAK)
+  display.setTextSize(1);
+  if (strcmp(event_type, "MAKE") == 0) {
+    display.fillRect(6, 22, 32, 11, SSD1306_WHITE);
+    display.setTextColor(SSD1306_BLACK);
+    display.setCursor(10, 24);
+    display.print("MAKE");
+  } else {
+    display.drawRect(6, 22, 37, 11, SSD1306_WHITE);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(10, 24);
+    display.print("BREAK");
+  }
+  display.setTextColor(SSD1306_WHITE);
+
+  // Dynamically center and scale the Key Name
+  int name_len = strlen(key_name);
+  if (name_len <= 10) {
+    display.setTextSize(2);
+    int x = (128 - (name_len * 12)) / 2;
+    display.setCursor(x, 40);
+  } else {
+    display.setTextSize(1);
+    int x = (128 - (name_len * 6)) / 2;
+    display.setCursor(x, 44);
+  }
+  display.print(key_name);
 
   // Commit Draw Buffer -> Staging Buffer (~1.1 us)
   memcpy(staging_buf, display.getBuffer(), OLED_BUF_SIZE);
