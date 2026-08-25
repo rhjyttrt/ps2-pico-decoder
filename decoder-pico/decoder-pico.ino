@@ -623,11 +623,17 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
 
   static uint8_t pause_skip_count = 0;
   static uint32_t last_led_blink = 0;
+  static bool heartbeat_state = false;
 
-  // LED Heartbeat (500ms toggle) on GPIO 25
+  // LED Heartbeat (500ms toggle) on GPIO 25 at 10% brightness via PWM
   if (millis() - last_led_blink >= 500) {
     last_led_blink = millis();
-    digitalWrite(LED_HEARTBEAT_PIN, !digitalRead(LED_HEARTBEAT_PIN));
+    heartbeat_state = !heartbeat_state;
+    if (heartbeat_state) {
+      analogWrite(LED_HEARTBEAT_PIN, 25); // ~10% of 255
+    } else {
+      analogWrite(LED_HEARTBEAT_PIN, 0);
+    }
   }
 
 
