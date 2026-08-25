@@ -376,7 +376,7 @@ void __attribute__((section(".time_critical.resolve_key"))) resolve_key(uint8_t 
       else if (ch == '\b') snprintf(desc_out, desc_sz, "BACKSPACE");
       else if (ch == '\t') snprintf(desc_out, desc_sz, "TAB");
       else if (ch == ' ')  snprintf(desc_out, desc_sz, "SPACE");
-      else                 snprintf(desc_out, desc_sz, "KEY_%c", (ch >= 'a' && ch <= 'z') ? (ch - 32) : ch);
+      else                 snprintf(desc_out, desc_sz, "%c", *ascii_out);
     }
     return;
   }
