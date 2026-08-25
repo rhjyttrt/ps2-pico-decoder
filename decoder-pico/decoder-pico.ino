@@ -11,6 +11,8 @@ void __attribute__((section(".time_critical.render_frame_to_staging"))) render_f
 void __attribute__((section(".time_critical.flush_staging_to_display"))) flush_staging_to_display();
 void __attribute__((section(".time_critical.print_telemetry"))) print_telemetry(uint8_t code, const char* event_type, const char* prefix_type, const char* desc, char ascii_out, bool lshift, bool rshift, bool lctrl, bool rctrl, bool lalt, bool ralt, bool caps, bool num, bool scrl);
 void __attribute__((section(".time_critical.core0_process"))) core0_process();
+void __attribute__((section(".time_critical.build_held_string"))) build_held_string(int keys_held, bool key_state[], bool ext_key_state[], bool shift, bool ctrl, bool caps, bool num, char* out_buf, size_t out_sz, const char* default_name);
+
 void __attribute__((section(".time_critical.core1_process"))) core1_process();
 
 #include "hardware/gpio.h"
@@ -629,6 +631,36 @@ void setup() {
   setup_complete = true;
 }
 
+void __attribute__((section(".time_critical.build_held_string"))) build_held_string(int keys_held, bool key_state[], bool ext_key_state[], bool shift, bool ctrl, bool caps, bool num, char* out_buf, size_t out_sz, const char* default_name) {
+  if (keys_held <= 1) {
+    strncpy(out_buf, default_name, out_sz);
+    return;
+  }
+  
+  out_buf[0] = '\0';
+  int added = 0;
+  for (int c = 0; c < 256; c++) {
+    if (key_state[c]) {
+      char t_name[24]; char t_ascii;
+      resolve_key(c, false, shift, ctrl, caps, num, t_name, sizeof(t_name), &t_ascii);
+      if (added > 0) strncat(out_buf, " + ", out_sz - strlen(out_buf) - 1);
+      strncat(out_buf, t_name, out_sz - strlen(out_buf) - 1);
+      added++;
+      if (added >= 3) return;
+    }
+  }
+  for (int c = 0; c < 256; c++) {
+    if (ext_key_state[c]) {
+      char t_name[24]; char t_ascii;
+      resolve_key(c, true, shift, ctrl, caps, num, t_name, sizeof(t_name), &t_ascii);
+      if (added > 0) strncat(out_buf, " + ", out_sz - strlen(out_buf) - 1);
+      strncat(out_buf, t_name, out_sz - strlen(out_buf) - 1);
+      added++;
+      if (added >= 3) return;
+    }
+  }
+}
+
 void __attribute__((section(".time_critical.core0_process"))) core0_process() {
   static bool is_break = false;
   static bool is_extended = false;
@@ -765,8 +797,15 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
       print_telemetry(code, "BREAK", prefix_str, key_name, 0,
                       lshift, rshift, lctrl, rctrl, lalt, ralt, caps_lock, num_lock, scroll_lock);
 
+      char multi_key_name[64];
+      if (keys_held == 0) {
+        strncpy(multi_key_name, key_name, sizeof(multi_key_name)); // IDLE uses last key
+      } else {
+        build_held_string(keys_held, key_state, ext_key_state, (lshift||rshift), (lctrl||rctrl), caps_lock, num_lock, multi_key_name, sizeof(multi_key_name), key_name);
+      }
+
       const char* ui_event = (keys_held == 0) ? "IDLE" : "BREAK";
-      render_frame_to_staging(code, ui_event, key_name, (char)keys_held, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
+      render_frame_to_staging(code, ui_event, multi_key_name, (char)keys_held, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
                               caps_lock, num_lock, scroll_lock);
 
       is_break = false;
@@ -805,7 +844,10 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
     print_telemetry(code, "MAKE", prefix_str, key_name, ascii_char,
                     lshift, rshift, lctrl, rctrl, lalt, ralt, caps_lock, num_lock, scroll_lock);
 
-    render_frame_to_staging(code, "MAKE", key_name, (char)keys_held, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
+    char multi_key_name[64];
+    build_held_string(keys_held, key_state, ext_key_state, (lshift||rshift), (lctrl||rctrl), caps_lock, num_lock, multi_key_name, sizeof(multi_key_name), key_name);
+
+    render_frame_to_staging(code, "MAKE", multi_key_name, (char)keys_held, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
                             caps_lock, num_lock, scroll_lock);
 
     // Turn on Keypress LED while key is held
