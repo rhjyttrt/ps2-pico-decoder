@@ -68,6 +68,27 @@ volatile uint32_t i2c_bus_errors      = 0;
 #define TAPE_MAX_LEN 18
 char text_tape[TAPE_MAX_LEN + 1] = "";
 
+
+// -----------------------------------------------------------------------------
+// Core 1 to Core 0 Serial Queue
+// -----------------------------------------------------------------------------
+#define SERIAL_QUEUE_SIZE 32
+char serial_queue[SERIAL_QUEUE_SIZE][224];
+volatile uint8_t sq_head = 0;
+volatile uint8_t sq_tail = 0;
+
+volatile bool setup_complete = false;
+
+void enqueue_serial(const char* str) {
+  uint8_t next_head = (sq_head + 1) % SERIAL_QUEUE_SIZE;
+  if (next_head != sq_tail) {
+    strncpy((char*)serial_queue[sq_head], str, 223);
+    serial_queue[sq_head][223] = '\0';
+    arm_dmb();
+    sq_head = next_head;
+  }
+}
+
 // Cortex-M33 Data Memory Barrier
 static inline void arm_dmb() {
   __asm__ volatile ("dmb 0xF" ::: "memory");
@@ -509,7 +530,7 @@ void print_telemetry(uint8_t code, const char* event_type, const char* prefix_ty
     "[0x%02X] %-5s | %-6s | Key: %-12s | Char: %-14s | Mods: %-8s | Locks: %s",
     code, event_type, prefix_type, desc, ascii_repr, mods, locks);
 
-  Serial.println(line);
+  enqueue_serial(line);
 }
 
 // -----------------------------------------------------------------------------
@@ -578,6 +599,7 @@ void setup() {
                 (clock_get_hz(clk_sys) / 1000000) / 2);
   Serial.println("   Format: [HEX] EVENT | PREFIX | Key: IDENTIFIER | Char: ASCII | MODS | LOCKS    ");
   Serial.println("==================================================================================");
+  setup_complete = true;
 }
 
 void loop() {
@@ -611,7 +633,7 @@ void loop() {
     char diag[224];
     snprintf(diag, sizeof(diag), "[HEARTBEAT] Freq: %lu MHz | I2C: 600 kHz | Frames: %lu | Overruns: %lu | Parity: %lu | Bus Errs: %lu",
              clock_get_hz(clk_sys) / 1000000, isr_frames_received, isr_buffer_overruns, isr_parity_errors, i2c_bus_errors);
-    Serial.println(diag);
+    enqueue_serial(diag);
   }
 
   // Flush dangling prefixes on timeout (> 50 ms)
@@ -619,7 +641,7 @@ void loop() {
     is_break = false;
     is_extended = false;
     pause_skip_count = 0;
-    Serial.println("[WARN] Frame timeout (>50ms). Prefixes reset.");
+    enqueue_serial("[WARN] Frame timeout (>50ms). Prefixes reset.");
   }
 
   while (ps2_available()) {
@@ -631,15 +653,15 @@ void loop() {
       lshift = rshift = lctrl = rctrl = lalt = ralt = false;
       is_break = is_extended = false;
       pause_skip_count = 0;
-      Serial.println("[STATUS] 0xAA received -> Keyboard Self-Test (BAT) Passed. State reset.");
+      enqueue_serial("[STATUS] 0xAA received -> Keyboard Self-Test (BAT) Passed. State reset.");
       render_frame_to_staging(code, "BAT", "SELF_TEST_OK", 0, false, false, false, caps_lock, num_lock, scroll_lock);
       continue;
     }
 
-    if (code == 0xFA) { Serial.println("[STATUS] 0xFA -> Command Acknowledged (ACK)"); continue; }
-    if (code == 0xFE) { Serial.println("[STATUS] 0xFE -> Resend Request from Keyboard"); continue; }
-    if (code == 0xFC) { Serial.println("[ERROR]  0xFC -> Keyboard Self-Test Failed"); continue; }
-    if (code == 0xFD) { Serial.println("[ERROR]  0xFD -> Keyboard Key Diagnostic Failure"); continue; }
+    if (code == 0xFA) { enqueue_serial("[STATUS] 0xFA -> Command Acknowledged (ACK)"); continue; }
+    if (code == 0xFE) { enqueue_serial("[STATUS] 0xFE -> Resend Request from Keyboard"); continue; }
+    if (code == 0xFC) { enqueue_serial("[ERROR]  0xFC -> Keyboard Self-Test Failed"); continue; }
+    if (code == 0xFD) { enqueue_serial("[ERROR]  0xFD -> Keyboard Key Diagnostic Failure"); continue; }
 
     // 8-byte Pause/Break burst (E1 14 77 E1 F0 14 F0 77)
     if (pause_skip_count > 0) {
@@ -760,9 +782,31 @@ void loop() {
     is_extended = false;
   }
 
-  // Flush staging buffer to physical OLED over 600 kHz I2C
-  if (staging_has_new_frame && (millis() - last_display_push_millis >= OLED_REFRESH_INTERVAL_MS)) {
-    last_display_push_millis = millis();
+
+}
+// -----------------------------------------------------------------------------
+// CORE 1: Serial Monitor & OLED I2C Controller
+// -----------------------------------------------------------------------------
+void setup1() {
+  // Wait for Core 0 to finish hardware init
+  while (!setup_complete) {
+    delay(1);
+  }
+}
+
+void loop1() {
+  static uint32_t last_oled_push_millis = 0;
+
+  // 1. Drain the Serial Queue
+  while (sq_head != sq_tail) {
+    Serial.println((char*)serial_queue[sq_tail]);
+    arm_dmb();
+    sq_tail = (sq_tail + 1) % SERIAL_QUEUE_SIZE;
+  }
+
+  // 2. Flush Staging Buffer to OLED over I2C
+  if (staging_has_new_frame && (millis() - last_oled_push_millis >= OLED_REFRESH_INTERVAL_MS)) {
+    last_oled_push_millis = millis();
     flush_staging_to_display();
   }
 }
