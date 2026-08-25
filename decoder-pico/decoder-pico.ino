@@ -402,42 +402,56 @@ void __attribute__((section(".time_critical.render_frame_to_staging"))) render_f
   }
   bin_buf[8] = ' ';
 
-  // === YELLOW SECTION (Rows 0 - 15) ===
-  display.setTextSize(2);
-  display.setCursor(16, 0); // Center the 8 characters
-  display.print(bin_buf);
-
-  // === BLUE SECTION (Rows 16 - 63) ===
-  // Draw a stylized rounded frame for the blue section
-  display.drawRoundRect(0, 17, 128, 47, 4, SSD1306_WHITE);
-
-  // Action Badge (Filled for MAKE, Outlined for BREAK)
-  display.setTextSize(1);
-  if (strcmp(event_type, "MAKE") == 0) {
-    display.fillRect(6, 22, 32, 11, SSD1306_WHITE);
-    display.setTextColor(SSD1306_BLACK);
-    display.setCursor(10, 24);
-    display.print("MAKE");
-  } else {
-    display.drawRect(6, 22, 37, 11, SSD1306_WHITE);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(10, 24);
-    display.print("BREAK");
-  }
-  display.setTextColor(SSD1306_WHITE);
-
-  // Dynamically center and scale the Key Name
-  int name_len = strlen(key_name);
-  if (name_len <= 10) {
+  if (strcmp(event_type, "IDLE") == 0) {
+    // --- IDLE SCREEN ---
     display.setTextSize(2);
-    int x = (128 - (name_len * 12)) / 2;
-    display.setCursor(x, 40);
-  } else {
+    display.setCursor(40, 0);
+    display.print("IDLE");
+
+    display.drawRoundRect(0, 17, 128, 47, 4, SSD1306_WHITE);
+    
     display.setTextSize(1);
-    int x = (128 - (name_len * 6)) / 2;
-    display.setCursor(x, 44);
+    display.setCursor(16, 30);
+    display.print("Waiting for input");
+
+    display.drawFastHLine(0, 48, 128, SSD1306_WHITE);
+    display.setCursor(6, 52);
+    display.print("Last Key: ");
+    display.print(key_name);
+  } else {
+    // --- ACTIVE SCREEN (MAKE/BREAK) ---
+    display.setTextSize(2);
+    display.setCursor(16, 0);
+    display.print(bin_buf);
+
+    display.drawRoundRect(0, 17, 128, 47, 4, SSD1306_WHITE);
+
+    display.setTextSize(1);
+    if (strcmp(event_type, "MAKE") == 0) {
+      display.fillRect(6, 22, 32, 11, SSD1306_WHITE);
+      display.setTextColor(SSD1306_BLACK);
+      display.setCursor(10, 24);
+      display.print("MAKE");
+    } else {
+      display.drawRect(6, 22, 37, 11, SSD1306_WHITE);
+      display.setTextColor(SSD1306_WHITE);
+      display.setCursor(10, 24);
+      display.print("BREAK");
+    }
+    display.setTextColor(SSD1306_WHITE);
+
+    int name_len = strlen(key_name);
+    if (name_len <= 10) {
+      display.setTextSize(2);
+      int x = (128 - (name_len * 12)) / 2;
+      display.setCursor(x, 40);
+    } else {
+      display.setTextSize(1);
+      int x = (128 - (name_len * 6)) / 2;
+      display.setCursor(x, 44);
+    }
+    display.print(key_name);
   }
-  display.print(key_name);
 
   // Commit Draw Buffer -> Staging Buffer (~1.1 us)
   memcpy(staging_buf, display.getBuffer(), OLED_BUF_SIZE);
@@ -621,6 +635,10 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
   static bool num_lock  = true,  num_lock_down  = false;
   static bool scroll_lock = false, scroll_lock_down = false;
 
+  static bool key_state[256] = {false};
+  static bool ext_key_state[256] = {false};
+  static int keys_held = 0;
+
   static uint8_t pause_skip_count = 0;
   static uint32_t last_led_blink = 0;
   static bool heartbeat_state = false;
@@ -655,8 +673,11 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
       lshift = rshift = lctrl = rctrl = lalt = ralt = false;
       is_break = is_extended = false;
       pause_skip_count = 0;
+      memset(key_state, 0, sizeof(key_state));
+      memset(ext_key_state, 0, sizeof(ext_key_state));
+      keys_held = 0;
       enqueue_serial("[STATUS] 0xAA received -> Keyboard Self-Test (BAT) Passed. State reset.");
-      render_frame_to_staging(code, "BAT", "SELF_TEST_OK", 0, false, false, false, caps_lock, num_lock, scroll_lock);
+      render_frame_to_staging(code, "IDLE", "SYSTEM_BOOT", 0, false, false, false, caps_lock, num_lock, scroll_lock);
       continue;
     }
 
@@ -709,7 +730,18 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
     // KEY RELEASE (BREAK)
     // ==========================================
     if (is_break) {
-      digitalWrite(LED_KEYPRESS_PIN, LOW); // Turn off LED on key release
+      bool was_held = is_extended ? ext_key_state[code] : key_state[code];
+      if (was_held) {
+        if (is_extended) ext_key_state[code] = false;
+        else key_state[code] = false;
+        keys_held--;
+      }
+      if (keys_held < 0) keys_held = 0; // Failsafe
+      
+      if (keys_held == 0) {
+        digitalWrite(LED_KEYPRESS_PIN, LOW); // Turn off LED only when ALL keys are released
+      }
+
       if (!is_extended) {
         if (code == 0x12) lshift = false;
         if (code == 0x59) rshift = false;
@@ -726,7 +758,8 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
       print_telemetry(code, "BREAK", prefix_str, key_name, 0,
                       lshift, rshift, lctrl, rctrl, lalt, ralt, caps_lock, num_lock, scroll_lock);
 
-      render_frame_to_staging(code, "BREAK", key_name, 0, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
+      const char* ui_event = (keys_held == 0) ? "IDLE" : "BREAK";
+      render_frame_to_staging(code, ui_event, key_name, 0, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
                               caps_lock, num_lock, scroll_lock);
 
       is_break = false;
@@ -737,6 +770,13 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
     // ==========================================
     // KEY PRESS (MAKE)
     // ==========================================
+    bool was_held = is_extended ? ext_key_state[code] : key_state[code];
+    if (!was_held) {
+      if (is_extended) ext_key_state[code] = true;
+      else key_state[code] = true;
+      keys_held++;
+    }
+
     if (!is_extended) {
       if (code == 0x12) lshift = true;
       else if (code == 0x59) rshift = true;
