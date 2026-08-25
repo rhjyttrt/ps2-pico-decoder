@@ -384,64 +384,29 @@ void render_frame_to_staging(uint8_t last_code, const char* event_type, const ch
   if (!oled_ready) return;
 
   display.clearDisplay();
-
-  // === YELLOW SECTION (Rows 0 - 15) ===
-  display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
 
-  // Line 1: Centered Lock Indicators
-  if (caps) { display.fillRect(0, 0, 24, 8, SSD1306_WHITE); display.setTextColor(SSD1306_BLACK); }
-  display.setCursor(2, 0); display.print("CAP"); display.setTextColor(SSD1306_WHITE);
+  // Convert raw code to binary string
+  char bin_buf[9];
+  for(int i = 7; i >= 0; i--) {
+    bin_buf[7 - i] = (last_code & (1 << i)) ? '1' : '0';
+  }
+  bin_buf[8] = ' ';
 
-  if (num) { display.fillRect(26, 0, 24, 8, SSD1306_WHITE); display.setTextColor(SSD1306_BLACK); }
-  display.setCursor(28, 0); display.print("NUM"); display.setTextColor(SSD1306_WHITE);
-
-  if (scrl) { display.fillRect(52, 0, 24, 8, SSD1306_WHITE); display.setTextColor(SSD1306_BLACK); }
-  display.setCursor(54, 0); display.print("SCR"); display.setTextColor(SSD1306_WHITE);
-
-  // Modifiers Badge (Fixed 5-Char Width)
-  display.setCursor(82, 0);
-  display.printf("[%c%c%c]", shift ? 'S':'-', ctrl ? 'C':'-', alt ? 'A':'-');
-
-  // Line 2: Hex Scan Code + Event + Clock
-  display.setCursor(0, 8);
-  char hex_buf[24];
-  snprintf(hex_buf, sizeof(hex_buf), "0x%02X %-5s", last_code, event_type);
-  display.print(hex_buf);
-
-  display.setCursor(84, 8);
-  display.print("300/800k");
-
-  // Dividing Line
-  display.drawFastHLine(0, 15, SCREEN_WIDTH, SSD1306_WHITE);
+  // === YELLOW SECTION (Rows 0 - 15) ===
+  display.setTextSize(2);
+  display.setCursor(16, 0); // Center the 8 characters (12px * 8 = 96px, 128-96=32, 32/2=16)
+  display.print(bin_buf);
 
   // === BLUE SECTION (Rows 16 - 63) ===
-  display.setCursor(0, 18);
   display.setTextSize(1);
-  display.print("Key: ");
-  display.print(key_name);
+  display.setCursor(0, 24);
+  display.print("Action: ");
+  display.print(event_type); // "MAKE" or "BREAK"
 
-  display.setCursor(0, 28);
-  if (ascii_char >= 32 && ascii_char <= 126) {
-    display.setTextSize(2);
-    display.print("[ ");
-    display.print(ascii_char);
-    display.print(" ]");
-  } else {
-    display.setTextSize(1);
-    display.setCursor(0, 32);
-    if (ascii_char == '\n')      display.print("ASCII: [ ENTER ]");
-    else if (ascii_char == '\b') display.print("ASCII: [ BKSP  ]");
-    else if (ascii_char == '\t') display.print("ASCII: [  TAB  ]");
-    else if (ascii_char == 0x1B) display.print("ASCII: [  ESC  ]");
-    else                         display.print("ASCII: [  NONE ]");
-  }
-
-  // Live Type Tape
-  display.setTextSize(1);
-  display.setCursor(0, 54);
-  display.print(">");
-  display.print(text_tape);
+  display.setTextSize(2);
+  display.setCursor(0, 40);
+  display.print(key_name); // Human-readable key name
 
   // Commit Draw Buffer -> Staging Buffer (~1.1 us)
   memcpy(staging_buf, display.getBuffer(), OLED_BUF_SIZE);
