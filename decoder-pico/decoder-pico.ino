@@ -558,7 +558,7 @@ void setup() {
   gpio_set_input_hysteresis_enabled(I2C_SCL_PIN, true);
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
-    Serial.println("[ERROR] SSD1306 Allocation Failed!");
+    Serial.println("[ERROR] OLED not found!");
     oled_ready = false;
   } else {
     oled_ready = true;
@@ -587,14 +587,6 @@ void setup() {
 
   attachInterrupt(digitalPinToInterrupt(PS2_CLK_PIN), ps2_clock_isr, FALLING);
 
-  Serial.println("==================================================================================");
-  Serial.printf("   RP2350 (ARM Cortex-M33) System Clock: %lu MHz | PLL Lock: %s\n", 
-                clock_get_hz(clk_sys) / 1000000, clock_set_ok ? "LOCKED" : "FAILED");
-  Serial.printf("   I2C Bus: 600 kHz (4.7k Pull-ups) | Triple-Buffered SRAM Engine: 3072 Bytes Active\n");
-  Serial.printf("   QSPI Flash Divider: /2 (%lu MHz Flash Clock)\n", 
-                (clock_get_hz(clk_sys) / 1000000) / 2);
-  Serial.println("   Format: [HEX] EVENT | PREFIX | Key: IDENTIFIER | Char: ASCII | MODS | LOCKS    ");
-  Serial.println("==================================================================================");
   setup_complete = true;
 }
 
@@ -602,7 +594,6 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
   static bool is_break = false;
   static bool is_extended = false;
   static uint32_t last_byte_millis = 0;
-  static uint32_t last_heartbeat_millis = 0;
 
   static bool lshift = false, rshift = false;
   static bool lctrl  = false, rctrl  = false;
@@ -623,21 +614,12 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
 
 
 
-  // Heartbeat logging (every 10 seconds)
-  if (millis() - last_heartbeat_millis > 10000) {
-    last_heartbeat_millis = millis();
-    char diag[224];
-    snprintf(diag, sizeof(diag), "[HEARTBEAT] Freq: %lu MHz | I2C: 800 kHz | Frames: %lu | Overruns: %lu | Parity: %lu | Bus Errs: %lu",
-             clock_get_hz(clk_sys) / 1000000, isr_frames_received, isr_buffer_overruns, isr_parity_errors, i2c_bus_errors);
-    enqueue_serial(diag);
-  }
 
   // Flush dangling prefixes on timeout (> 50 ms)
   if ((is_break || is_extended || pause_skip_count > 0) && (millis() - last_byte_millis > 50)) {
     is_break = false;
     is_extended = false;
     pause_skip_count = 0;
-    enqueue_serial("[WARN] Frame timeout (>50ms). Prefixes reset.");
   }
 
   while (ps2_available()) {
