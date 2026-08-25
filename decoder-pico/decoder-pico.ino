@@ -21,6 +21,8 @@ const uint8_t PS2_CLK_PIN  = 2; // GP2
 const uint8_t PS2_DATA_PIN = 3; // GP3
 const uint8_t I2C_SDA_PIN  = 4; // GP4 (External 4.7k Pull-up to 3.3V)
 const uint8_t I2C_SCL_PIN  = 5; // GP5 (External 4.7k Pull-up to 3.3V)
+const uint8_t LED_KEYPRESS_PIN = 24;
+const uint8_t LED_HEARTBEAT_PIN = 25;
 
 #define SCREEN_WIDTH   128
 #define SCREEN_HEIGHT  64
@@ -558,6 +560,11 @@ void setup() {
   pinMode(PS2_CLK_PIN, INPUT_PULLUP);
   pinMode(PS2_DATA_PIN, INPUT_PULLUP);
 
+  pinMode(LED_KEYPRESS_PIN, OUTPUT);
+  pinMode(LED_HEARTBEAT_PIN, OUTPUT);
+  digitalWrite(LED_KEYPRESS_PIN, LOW);
+  digitalWrite(LED_HEARTBEAT_PIN, LOW);
+
   gpio_set_input_hysteresis_enabled(PS2_CLK_PIN, true);
   gpio_set_input_hysteresis_enabled(PS2_DATA_PIN, true);
 
@@ -588,6 +595,19 @@ void loop() {
   static bool scroll_lock = false, scroll_lock_down = false;
 
   static uint8_t pause_skip_count = 0;
+  static uint32_t keypress_led_timer = 0;
+  static uint32_t last_led_blink = 0;
+
+  // LED Heartbeat (500ms toggle) on GPIO 25
+  if (millis() - last_led_blink >= 500) {
+    last_led_blink = millis();
+    digitalWrite(LED_HEARTBEAT_PIN, !digitalRead(LED_HEARTBEAT_PIN));
+  }
+
+  // Keypress LED timeout on GPIO 24
+  if (digitalRead(LED_KEYPRESS_PIN) && (millis() - keypress_led_timer > 50)) {
+    digitalWrite(LED_KEYPRESS_PIN, LOW);
+  }
 
   // Heartbeat logging (every 10 seconds)
   if (millis() - last_heartbeat_millis > 10000) {
@@ -736,6 +756,10 @@ void loop() {
 
     render_frame_to_staging(code, "MAKE", key_name, ascii_char, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
                             caps_lock, num_lock, scroll_lock);
+
+    // Trigger Keypress LED
+    digitalWrite(LED_KEYPRESS_PIN, HIGH);
+    keypress_led_timer = millis();
 
     is_extended = false;
   }
