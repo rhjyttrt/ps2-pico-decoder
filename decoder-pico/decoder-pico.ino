@@ -440,6 +440,13 @@ void __attribute__((section(".time_critical.render_frame_to_staging"))) render_f
     }
     display.setTextColor(SSD1306_WHITE);
 
+    // Draw active keys counter next to the badge
+    int k_held = (int)ascii_char;
+    display.setCursor(48, 24);
+    display.print("[");
+    display.print(k_held);
+    display.print(" Held]");
+
     int name_len = strlen(key_name);
     if (name_len <= 10) {
       display.setTextSize(2);
@@ -695,7 +702,7 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
       pause_skip_count = 7;
       print_telemetry(0xE1, "MAKE", "SPECIAL", "PAUSE/BREAK", 0, 
                       lshift, rshift, lctrl, rctrl, lalt, ralt, caps_lock, num_lock, scroll_lock);
-      render_frame_to_staging(0xE1, "MAKE", "PAUSE/BREAK", 0, (lshift || rshift), (lctrl || rctrl), (lalt || ralt), caps_lock, num_lock, scroll_lock);
+      render_frame_to_staging(0xE1, "MAKE", "PAUSE/BREAK", (char)keys_held, (lshift || rshift), (lctrl || rctrl), (lalt || ralt), caps_lock, num_lock, scroll_lock);
       continue;
     }
 
@@ -759,7 +766,7 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
                       lshift, rshift, lctrl, rctrl, lalt, ralt, caps_lock, num_lock, scroll_lock);
 
       const char* ui_event = (keys_held == 0) ? "IDLE" : "BREAK";
-      render_frame_to_staging(code, ui_event, key_name, 0, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
+      render_frame_to_staging(code, ui_event, key_name, (char)keys_held, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
                               caps_lock, num_lock, scroll_lock);
 
       is_break = false;
@@ -798,7 +805,7 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
     print_telemetry(code, "MAKE", prefix_str, key_name, ascii_char,
                     lshift, rshift, lctrl, rctrl, lalt, ralt, caps_lock, num_lock, scroll_lock);
 
-    render_frame_to_staging(code, "MAKE", key_name, ascii_char, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
+    render_frame_to_staging(code, "MAKE", key_name, (char)keys_held, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
                             caps_lock, num_lock, scroll_lock);
 
     // Turn on Keypress LED while key is held
