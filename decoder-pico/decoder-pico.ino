@@ -9,9 +9,9 @@
 // -----------------------------------------------------------------------------
 // Clock & Core Overclock Configuration
 // -----------------------------------------------------------------------------
-// 300 MHz: Extreme Integer PLL lock
+// 332 MHz: Absolute Maximum PLL lock (166 MHz Flash)
 // QSPI Flash Clock: 133.0 MHz (QMI /2 Divider)
-#define TARGET_SYS_FREQ_KHZ  300000
+#define TARGET_SYS_FREQ_KHZ  332000
 #define TARGET_I2C_FREQ_HZ   800000 // 800 kHz High-Speed
 
 // -----------------------------------------------------------------------------
@@ -410,7 +410,7 @@ void render_frame_to_staging(uint8_t last_code, const char* event_type, const ch
   display.print(hex_buf);
 
   display.setCursor(84, 8);
-  display.print("300/800k");
+  display.print("332/800k");
 
   // Dividing Line
   display.drawFastHLine(0, 15, SCREEN_WIDTH, SSD1306_WHITE);
