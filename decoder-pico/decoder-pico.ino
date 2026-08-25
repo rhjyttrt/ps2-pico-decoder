@@ -595,7 +595,6 @@ void loop() {
   static bool scroll_lock = false, scroll_lock_down = false;
 
   static uint8_t pause_skip_count = 0;
-  static uint32_t keypress_led_timer = 0;
   static uint32_t last_led_blink = 0;
 
   // LED Heartbeat (500ms toggle) on GPIO 25
@@ -604,10 +603,7 @@ void loop() {
     digitalWrite(LED_HEARTBEAT_PIN, !digitalRead(LED_HEARTBEAT_PIN));
   }
 
-  // Keypress LED timeout on GPIO 24
-  if (digitalRead(LED_KEYPRESS_PIN) && (millis() - keypress_led_timer > 50)) {
-    digitalWrite(LED_KEYPRESS_PIN, LOW);
-  }
+
 
   // Heartbeat logging (every 10 seconds)
   if (millis() - last_heartbeat_millis > 10000) {
@@ -689,6 +685,7 @@ void loop() {
     // KEY RELEASE (BREAK)
     // ==========================================
     if (is_break) {
+      digitalWrite(LED_KEYPRESS_PIN, LOW); // Turn off LED on key release
       if (!is_extended) {
         if (code == 0x12) lshift = false;
         if (code == 0x59) rshift = false;
@@ -757,9 +754,8 @@ void loop() {
     render_frame_to_staging(code, "MAKE", key_name, ascii_char, (lshift || rshift), (lctrl || rctrl), (lalt || ralt),
                             caps_lock, num_lock, scroll_lock);
 
-    // Trigger Keypress LED
+    // Turn on Keypress LED while key is held
     digitalWrite(LED_KEYPRESS_PIN, HIGH);
-    keypress_led_timer = millis();
 
     is_extended = false;
   }
