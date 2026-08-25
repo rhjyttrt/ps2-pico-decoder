@@ -2,6 +2,17 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+
+// Explicit Prototypes to prevent Arduino Builder from generating conflicting un-attributed prototypes
+void __attribute__((section(".time_critical.enqueue_serial"))) enqueue_serial(const char* str);
+char __attribute__((section(".time_critical.get_shifted_symbol"))) get_shifted_symbol(char c);
+void __attribute__((section(".time_critical.resolve_key"))) resolve_key(uint8_t code, bool is_ext, bool shift, bool ctrl, bool caps, bool num, char* desc_out, size_t desc_sz, char* ascii_out);
+void __attribute__((section(".time_critical.render_frame_to_staging"))) render_frame_to_staging(uint8_t last_code, const char* event_type, const char* key_name, char ascii_char, bool shift, bool ctrl, bool alt, bool caps, bool num, bool scrl);
+void __attribute__((section(".time_critical.flush_staging_to_display"))) flush_staging_to_display();
+void __attribute__((section(".time_critical.print_telemetry"))) print_telemetry(uint8_t code, const char* event_type, const char* prefix_type, const char* desc, char ascii_out, bool lshift, bool rshift, bool lctrl, bool rctrl, bool lalt, bool ralt, bool caps, bool num, bool scrl);
+void __attribute__((section(".time_critical.core0_process"))) core0_process();
+void __attribute__((section(".time_critical.core1_process"))) core1_process();
+
 #include "hardware/gpio.h"
 #include "hardware/vreg.h"
 #include "hardware/clocks.h"
@@ -589,7 +600,7 @@ void setup() {
   setup_complete = true;
 }
 
-void __attribute__((section(".time_critical.loop"))) loop() {
+void __attribute__((section(".time_critical.core0_process"))) core0_process() {
   static bool is_break = false;
   static bool is_extended = false;
   static uint32_t last_byte_millis = 0;
@@ -771,6 +782,10 @@ void __attribute__((section(".time_critical.loop"))) loop() {
 
 
 }
+
+void loop() {
+  core0_process();
+}
 // -----------------------------------------------------------------------------
 // CORE 1: Serial Monitor & OLED I2C Controller
 // -----------------------------------------------------------------------------
@@ -781,7 +796,7 @@ void setup1() {
   }
 }
 
-void __attribute__((section(".time_critical.loop1"))) loop1() {
+void __attribute__((section(".time_critical.core1_process"))) core1_process() {
   static uint32_t last_oled_push_millis = 0;
 
   // 1. Drain the Serial Queue
@@ -796,4 +811,8 @@ void __attribute__((section(".time_critical.loop1"))) loop1() {
     last_oled_push_millis = millis();
     flush_staging_to_display();
   }
+}
+
+void loop1() {
+  core1_process();
 }
