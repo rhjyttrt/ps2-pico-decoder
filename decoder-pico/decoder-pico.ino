@@ -12,7 +12,7 @@
 // 300 MHz: Extreme Integer PLL lock
 // QSPI Flash Clock: 133.0 MHz (QMI /2 Divider)
 #define TARGET_SYS_FREQ_KHZ  300000
-#define TARGET_I2C_FREQ_HZ   1000000 // 1 MHz Extreme Fast-Mode Plus
+#define TARGET_I2C_FREQ_HZ   800000 // 800 kHz High-Speed
 
 // -----------------------------------------------------------------------------
 // Pin Configuration & Hardware Constants
@@ -410,7 +410,7 @@ void render_frame_to_staging(uint8_t last_code, const char* event_type, const ch
   display.print(hex_buf);
 
   display.setCursor(84, 8);
-  display.print("300/1M");
+  display.print("300/800k");
 
   // Dividing Line
   display.drawFastHLine(0, 15, SCREEN_WIDTH, SSD1306_WHITE);
@@ -631,7 +631,7 @@ void loop() {
   if (millis() - last_heartbeat_millis > 10000) {
     last_heartbeat_millis = millis();
     char diag[224];
-    snprintf(diag, sizeof(diag), "[HEARTBEAT] Freq: %lu MHz | I2C: 1 MHz | Frames: %lu | Overruns: %lu | Parity: %lu | Bus Errs: %lu",
+    snprintf(diag, sizeof(diag), "[HEARTBEAT] Freq: %lu MHz | I2C: 800 kHz | Frames: %lu | Overruns: %lu | Parity: %lu | Bus Errs: %lu",
              clock_get_hz(clk_sys) / 1000000, isr_frames_received, isr_buffer_overruns, isr_parity_errors, i2c_bus_errors);
     enqueue_serial(diag);
   }
