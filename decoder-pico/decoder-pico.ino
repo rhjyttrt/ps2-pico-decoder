@@ -589,7 +589,7 @@ void setup() {
   Serial.println("\n   __  __");
   Serial.println(" _|  |_|  |_  PS/2 Hardware Decoder");
   Serial.println("|_    _    _| RP2350 @ 300 MHz");
-  Serial.println("  |__| |__|   SRAM Zero-Latency Engine\n");
+  Serial.println("  |__| |__|   Dual-Core Firmware\n");
   
   if (oled_ready) {
     Serial.println("  [+] OLED Display: FOUND (800 kHz I2C)");
