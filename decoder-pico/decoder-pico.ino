@@ -79,7 +79,7 @@ volatile uint8_t sq_tail = 0;
 
 volatile bool setup_complete = false;
 
-void enqueue_serial(const char* str) {
+void __attribute__((section(".time_critical.enqueue_serial"))) enqueue_serial(const char* str) {
   uint8_t next_head = (sq_head + 1) % SERIAL_QUEUE_SIZE;
   if (next_head != sq_tail) {
     strncpy((char*)serial_queue[sq_head], str, 223);
@@ -125,7 +125,7 @@ char get_scancode_char(uint8_t code) {
   }
 }
 
-char get_shifted_symbol(char c) {
+char __attribute__((section(".time_critical.get_shifted_symbol"))) get_shifted_symbol(char c) {
   switch (c) {
     case '1': return '!'; case '2': return '@'; case '3': return '#';
     case '4': return '$'; case '5': return '%'; case '6': return '^';
@@ -227,7 +227,7 @@ uint8_t __attribute__((section(".time_critical.ps2_read"))) ps2_read() {
 // -----------------------------------------------------------------------------
 // Unified Key Resolver
 // -----------------------------------------------------------------------------
-void resolve_key(uint8_t code, bool is_ext, bool shift, bool ctrl, bool caps, bool num,
+void __attribute__((section(".time_critical.resolve_key"))) resolve_key(uint8_t code, bool is_ext, bool shift, bool ctrl, bool caps, bool num,
                  char* desc_out, size_t desc_sz, char* ascii_out) {
   *ascii_out = 0;
 
@@ -378,7 +378,7 @@ void resolve_key(uint8_t code, bool is_ext, bool shift, bool ctrl, bool caps, bo
 // -----------------------------------------------------------------------------
 // Triple-Buffer Stage 1: Render into Draw Buffer & Commit to Staging
 // -----------------------------------------------------------------------------
-void render_frame_to_staging(uint8_t last_code, const char* event_type, const char* key_name,
+void __attribute__((section(".time_critical.render_frame_to_staging"))) render_frame_to_staging(uint8_t last_code, const char* event_type, const char* key_name,
                              char ascii_char, bool shift, bool ctrl, bool alt,
                              bool caps, bool num, bool scrl) {
   if (!oled_ready) return;
@@ -439,7 +439,7 @@ void render_frame_to_staging(uint8_t last_code, const char* event_type, const ch
 // -----------------------------------------------------------------------------
 // Triple-Buffer Stage 2: Push Outbound Frame to SSD1306 Over 600 kHz I2C
 // -----------------------------------------------------------------------------
-void flush_staging_to_display() {
+void __attribute__((section(".time_critical.flush_staging_to_display"))) flush_staging_to_display() {
   if (!oled_ready || !staging_has_new_frame) return;
 
   // Latch Staging Buffer -> Outbound TX Buffer
@@ -478,7 +478,7 @@ void flush_staging_to_display() {
 // -----------------------------------------------------------------------------
 // Telemetry Formatter
 // -----------------------------------------------------------------------------
-void print_telemetry(uint8_t code, const char* event_type, const char* prefix_type, 
+void __attribute__((section(".time_critical.print_telemetry"))) print_telemetry(uint8_t code, const char* event_type, const char* prefix_type, 
                      const char* desc, char ascii_out, bool lshift, bool rshift, 
                      bool lctrl, bool rctrl, bool lalt, bool ralt, 
                      bool caps, bool num, bool scrl) {
@@ -589,7 +589,7 @@ void setup() {
   setup_complete = true;
 }
 
-void loop() {
+void __attribute__((section(".time_critical.loop"))) loop() {
   static bool is_break = false;
   static bool is_extended = false;
   static uint32_t last_byte_millis = 0;
@@ -781,7 +781,7 @@ void setup1() {
   }
 }
 
-void loop1() {
+void __attribute__((section(".time_critical.loop1"))) loop1() {
   static uint32_t last_oled_push_millis = 0;
 
   // 1. Drain the Serial Queue
