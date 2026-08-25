@@ -76,8 +76,6 @@ volatile uint32_t isr_buffer_overruns = 0;
 volatile uint32_t i2c_bus_errors      = 0;
 
 // OLED Text Tape Buffer (18 visible characters)
-#define TAPE_MAX_LEN 18
-char text_tape[TAPE_MAX_LEN + 1] = "";
 
 
 // -----------------------------------------------------------------------------
@@ -750,23 +748,6 @@ void __attribute__((section(".time_critical.core0_process"))) core0_process() {
       else if (code == 0x11) ralt = true;
     }
 
-    // Update live typing tape on OLED
-    if (ascii_char >= 32 && ascii_char <= 126) {
-      size_t len = strlen(text_tape);
-      if (len < TAPE_MAX_LEN) {
-        text_tape[len] = ascii_char;
-        text_tape[len + 1] = '\0';
-      } else {
-        memmove(text_tape, text_tape + 1, TAPE_MAX_LEN - 1);
-        text_tape[TAPE_MAX_LEN - 1] = ascii_char;
-        text_tape[TAPE_MAX_LEN] = '\0';
-      }
-    } else if (code == 0x66 && !is_extended) { // Backspace
-      size_t len = strlen(text_tape);
-      if (len > 0) text_tape[len - 1] = '\0';
-    } else if (ascii_char == '\n') { // Enter clears live typing line
-      text_tape[0] = '\0';
-    }
 
     print_telemetry(code, "MAKE", prefix_str, key_name, ascii_char,
                     lshift, rshift, lctrl, rctrl, lalt, ralt, caps_lock, num_lock, scroll_lock);
