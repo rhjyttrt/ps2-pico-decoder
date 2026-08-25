@@ -558,7 +558,6 @@ void setup() {
   gpio_set_input_hysteresis_enabled(I2C_SCL_PIN, true);
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
-    Serial.println("[ERROR] OLED not found!");
     oled_ready = false;
   } else {
     oled_ready = true;
@@ -586,6 +585,19 @@ void setup() {
   gpio_set_input_hysteresis_enabled(PS2_DATA_PIN, true);
 
   attachInterrupt(digitalPinToInterrupt(PS2_CLK_PIN), ps2_clock_isr, FALLING);
+
+  Serial.println("\n   __  __");
+  Serial.println(" _|  |_|  |_  PS/2 Hardware Decoder");
+  Serial.println("|_    _    _| RP2350 @ 300 MHz");
+  Serial.println("  |__| |__|   SRAM Zero-Latency Engine\n");
+  
+  if (oled_ready) {
+    Serial.println("  [+] OLED Display: FOUND (800 kHz I2C)");
+  } else {
+    Serial.println("  [-] OLED Display: NOT FOUND");
+  }
+  
+  Serial.println("  [*] Waiting for keyboard...\n");
 
   setup_complete = true;
 }
