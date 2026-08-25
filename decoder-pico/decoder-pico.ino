@@ -9,10 +9,10 @@
 // -----------------------------------------------------------------------------
 // Clock & Core Overclock Configuration
 // -----------------------------------------------------------------------------
-// 266 MHz: Integer PLL lock from 12 MHz crystal (VCO: 1596 MHz, PostDiv: 6/1)
+// 300 MHz: Extreme Integer PLL lock
 // QSPI Flash Clock: 133.0 MHz (QMI /2 Divider)
-#define TARGET_SYS_FREQ_KHZ  266000
-#define TARGET_I2C_FREQ_HZ   600000 // 600 kHz Overclocked Fast-Mode
+#define TARGET_SYS_FREQ_KHZ  300000
+#define TARGET_I2C_FREQ_HZ   1000000 // 1 MHz Extreme Fast-Mode Plus
 
 // -----------------------------------------------------------------------------
 // Pin Configuration & Hardware Constants
@@ -41,7 +41,7 @@ uint8_t tx_buf[OLED_BUF_SIZE];      // Buffer 3: Outbound I2C transmission buffe
 
 volatile bool staging_has_new_frame = false;
 uint32_t last_display_push_millis = 0;
-const uint32_t OLED_REFRESH_INTERVAL_MS = 16; // ~60 FPS cap
+const uint32_t OLED_REFRESH_INTERVAL_MS = 8; // ~120 FPS Extreme refresh cap
 
 // -----------------------------------------------------------------------------
 // PS/2 Circular Ring Buffer & ISR State
@@ -142,7 +142,7 @@ char get_shifted_symbol(char c) {
 // -----------------------------------------------------------------------------
 // Low-Level ISR (Clock Falling Edge)
 // -----------------------------------------------------------------------------
-void ps2_clock_isr() {
+void __attribute__((section(".time_critical.ps2_isr"))) ps2_clock_isr() {
   uint8_t bit_val = gpio_get(PS2_DATA_PIN) ? 1 : 0;
   uint32_t now = micros();
   uint32_t delta = now - last_clk_micros;
@@ -212,11 +212,11 @@ void ps2_clock_isr() {
   }
 }
 
-bool ps2_available() {
+bool __attribute__((section(".time_critical.ps2_avail"))) ps2_available() {
   return (rx_head != rx_tail);
 }
 
-uint8_t ps2_read() {
+uint8_t __attribute__((section(".time_critical.ps2_read"))) ps2_read() {
   if (rx_head == rx_tail) return 0;
   uint8_t data = rx_buf[rx_tail];
   arm_dmb();
@@ -410,7 +410,7 @@ void render_frame_to_staging(uint8_t last_code, const char* event_type, const ch
   display.print(hex_buf);
 
   display.setCursor(84, 8);
-  display.print("266/600");
+  display.print("300/1M");
 
   // Dividing Line
   display.drawFastHLine(0, 15, SCREEN_WIDTH, SSD1306_WHITE);
@@ -631,7 +631,7 @@ void loop() {
   if (millis() - last_heartbeat_millis > 10000) {
     last_heartbeat_millis = millis();
     char diag[224];
-    snprintf(diag, sizeof(diag), "[HEARTBEAT] Freq: %lu MHz | I2C: 600 kHz | Frames: %lu | Overruns: %lu | Parity: %lu | Bus Errs: %lu",
+    snprintf(diag, sizeof(diag), "[HEARTBEAT] Freq: %lu MHz | I2C: 1 MHz | Frames: %lu | Overruns: %lu | Parity: %lu | Bus Errs: %lu",
              clock_get_hz(clk_sys) / 1000000, isr_frames_received, isr_buffer_overruns, isr_parity_errors, i2c_bus_errors);
     enqueue_serial(diag);
   }
